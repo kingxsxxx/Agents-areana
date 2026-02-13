@@ -1,0 +1,169 @@
+# ============================================================
+# AGORA AI Debate Arena - Docker Compose 编排配置
+# ============================================================
+# 生产环境部署配置
+# 使用方式: docker-compose -f docker-compose.yml up -d
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ==================== PostgreSQL 数据库 ====================
+  postgres:
+    image: postgres:15-alpine
+    container_name: agora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-agora_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-agora_password}
+      POSTGRES_DB: ${DB_NAME:-agora_ai}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-agora_user} -d ${DB_NAME:-agora_ai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agora-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== Redis 缓存 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: agora-redis
+    restart: unless-stopped
+    command: >
+      sh -c "
+      if [ -n \"${REDIS_PASSWORD}\" ]; then
+        redis-server --requirepass \"${REDIS_PASSWORD}\" --maxmemory 256mb --maxmemory-policy allkeys-lru
+      else
+        redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+      fi
+      "
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - agora-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== 应用服务 ====================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agora-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      DEBUG: "false"
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+      - ./frontend:/app/static
+    ports:
+      - "${SERVER_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agora-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== Nginx 反向代理 ====================
+  nginx:
+    image: nginx:alpine
+    container_name: agora-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./frontend:/usr/share/nginx/html:ro
+      # - uploads mounted via app service
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - agora-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ==================== 数据卷定义 ====================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_logs:
+    driver: local
+
+# ==================== 网络定义 ====================
+networks:
+  agora-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ============================================================
+# 使用说明:
+#
+# 首次部署:
+#   1. cp .env.example .env
+#   2. 编辑 .env 文件，填入实际配置
+#   3. docker-compose up -d
+#
+# 常用命令:
+#   - 启动服务: docker-compose up -d
+#   - 停止服务: docker-compose down
+#   - 重启服务: docker-compose restart
+#   - 查看日志: docker-compose logs -f [service_name]
+#   - 查看状态: docker-compose ps
+#   - 重新构建: docker-compose up -d --build
+#
+# SSL 证书:
+#   准备 SSL 证书文件:
+#   - ssl/cert.pem - 证书文件
+#   - ssl/key.pem - 私钥文件
+#
+# 数据库初始化:
+#   首次启动后，运行: docker-compose exec app python init_db.py
+# ============================================================

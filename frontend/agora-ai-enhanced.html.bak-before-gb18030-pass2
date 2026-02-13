@@ -1,0 +1,1134 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGORA AI - 智能辩论竞技场</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #0f172a;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(30, 41, 59, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(34, 211, 238, 0.1);
+            position: absolute;
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        @keyframes scan { 
+            from { top: 0%; } 
+            to { top: 100%; } 
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(34, 211, 238, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(34, 211, 238, 0.6); }
+        }
+
+        .speaking-glow {
+            animation: pulse-glow 1.5s infinite;
+            border-color: #22d3ee !important;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #1e293b;
+            height: 4px;
+            border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #22d3ee;
+            cursor: pointer;
+            box-shadow: 0 0 10px #22d3ee;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+        .slide-fade-enter-active { transition: all 0.4s ease-out; }
+        .slide-fade-leave-active { transition: all 0.3s ease-in; }
+        .slide-fade-enter-from, .slide-fade-leave-to { 
+            transform: translateX(100%); 
+            opacity: 0; 
+        }
+
+        .ready-glow {
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0% { border-color: rgba(34, 211, 238, 0.3); }
+            50% { border-color: rgba(34, 211, 238, 0.8); }
+            100% { border-color: rgba(34, 211, 238, 0.3); }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="relative w-full h-screen grid-bg overflow-hidden flex flex-col text-slate-200">
+            <div class="scanline"></div>
+
+            <!-- 登录/注册妯℃€佹 -->
+            <transition name="fade">
+                <div v-if="showAuthModal && !currentUser" class="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl">
+                    <div class="bg-slate-900 border border-slate-700 p-10 rounded-3xl max-w-md w-full shadow-2xl space-y-8">
+                        <div class="text-center space-y-2">
+                            <h2 class="text-3xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">
+                                {{ authMode === 'login' ? '登录绯荤粺' : '注册账号' }}
+                            </h2>
+                            <p class="text-xs text-slate-400">进入智能辩论竞技场</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-400">用户名</label>
+                                <input 
+                                    v-model="authForm.username" 
+                                    type="text" 
+                                    placeholder="请输入用户名"
+                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm focus:border-cyan-500 outline-none text-slate-200"
+                                    @keyup.enter="handleAuth"
+                                >
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs font-bold text-slate-400">瀵嗙爜</label>
+                                <input 
+                                    v-model="authForm.password" 
+                                    type="password" 
+                                    placeholder="请输入密码"
+                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm focus:border-cyan-500 outline-none text-slate-200"
+                                    @keyup.enter="handleAuth"
+                                >
+                            </div>
+                            <div v-if="authMode === 'register'" class="space-y-2">
+                                <label class="text-xs font-bold text-slate-400">邮箱</label>
+                                <input 
+                                    v-model="authForm.email" 
+                                    type="email" 
+                                    placeholder="请输入邮箱"
+                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm focus:border-cyan-500 outline-none text-slate-200"
+                                >
+                            </div>
+                        </div>
+
+                        <div v-if="authError" class="text-xs text-red-400 bg-red-950/30 border border-red-900 rounded-lg p-3">
+                            {{ authError }}
+                        </div>
+
+                        <button 
+                            @click="handleAuth"
+                            :disabled="authLoading"
+                            class="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl font-black text-sm hover:from-cyan-500 hover:to-blue-500 transition-all shadow-xl disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                        >
+                            {{ authLoading ? '处理中...' : (authMode === 'login' ? '登录' : '注册') }}
+                        </button>
+
+                        <div class="text-center">
+                            <button 
+                                @click="authMode = authMode === 'login' ? 'register' : 'login'"
+                                class="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+                            >
+                                {{ authMode === 'login' ? '还没有账号？立即注册' : '已有账号？返回登录' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+
+            <!-- 椤堕儴瀵艰埅鏍?-->
+            <header class="z-[60] flex justify-between items-center p-6 bg-slate-900/80 backdrop-blur-md border-b border-slate-700 shadow-xl">
+                <div class="flex items-center gap-6">
+                    <div @click="handleHomeClick" class="group flex items-center gap-3 cursor-pointer">
+                        <div class="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg group-hover:rotate-12 transition-all">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                            </svg>
+                        </div>
+                        <div class="font-black italic tracking-tighter text-2xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-500">
+                            AGORA AI
+                        </div>
+                    </div>
+
+                    <!-- 褰撳墠鐢ㄦ埛淇℃伅 -->
+                    <div v-if="currentUser && currentView !== 'home'" class="flex items-center gap-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700">
+                        <div class="w-8 h-8 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <span class="text-xs font-black text-white">{{ currentUser.username[0].toUpperCase() }}</span>
+                        </div>
+                        <span class="text-sm font-bold text-slate-300">{{ currentUser.username }}</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- 辩论进行中殑鐘舵€佹樉绀?-->
+                    <div v-if="currentView === 'debate' && debateStatus === 'running'" class="flex items-center gap-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                            <span class="text-xs font-bold text-slate-400">辩论进行中</span>
+                        </div>
+                        <span class="text-xs text-cyan-400 font-black">{{ currentPhase }}</span>
+                    </div>
+
+                    <!-- 鍑嗗鐘舵€佹樉绀?-->
+                    <div v-if="currentView === 'arena'" class="flex items-center gap-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700">
+                        <div class="flex gap-1">
+                            <div v-for="n in 14" :key="n" 
+                                 :class="['w-1 h-4 rounded-full transition-all', n <= readyCount ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]' : 'bg-slate-700']">
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ready: {{ readyCount }}/14</span>
+                    </div>
+
+                    <!-- 启动按钮 -->
+                    <button 
+                        v-if="currentView === 'arena'"
+                        @click="startDebate" 
+                        :disabled="readyCount < 14 || !debateTopic.trim()"
+                        :class="['px-8 py-3 rounded-full font-black shadow-2xl transition-all active:scale-95 uppercase tracking-widest text-xs', 
+                                 readyCount === 14 && debateTopic.trim() ? 'bg-pink-600 hover:bg-pink-500 text-white cursor-pointer' : 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700']">
+                        {{ readyCount === 14 && debateTopic.trim() ? '启动辩论' : '等待配置完成' }}
+                    </button>
+
+                    <!-- 鐢ㄦ埛鑿滃崟 -->
+                    <div v-if="currentUser" class="relative">
+                        <button @click="showUserMenu = !showUserMenu" class="w-10 h-10 rounded-full hover:bg-slate-800 text-slate-400 transition-colors flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+                            </svg>
+                        </button>
+                        <transition name="fade">
+                            <div v-if="showUserMenu" class="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+                                <button @click="logout" class="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-slate-800 transition-colors">
+                                    閫€鍑虹櫥褰?                                </button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 涓昏鍥惧尯鍩?-->
+            <main class="flex-1 relative flex overflow-hidden">
+                <!-- 棣栭〉 -->
+                <transition name="fade" mode="out-in">
+                    <div v-if="currentView === 'home'" key="home" class="w-full h-full flex flex-col items-center justify-center space-y-12">
+                        <div class="text-center relative">
+                            <div class="absolute -inset-10 bg-cyan-500/10 blur-[100px] rounded-full"></div>
+                            <h1 class="text-8xl font-black italic tracking-tighter text-white relative">AGORA<br>AI</h1>
+                            <p class="mt-4 text-cyan-500 tracking-[0.5em] uppercase text-xs font-bold relative">鏅鸿兘杈╄绔炴妧鍦?路 澶氭ā鍨嬪崥寮堝钩鍙</p>
+                        </div>
+                        
+                        <div class="flex gap-6">
+                            <button @click="currentView = 'arena'" class="group px-12 py-6 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-2xl font-black text-xl hover:scale-110 transition-all shadow-2xl relative overflow-hidden active:scale-95">
+                                <span class="relative z-10 text-white">组织辩论赛</span>
+                                <div class="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            </button>
+                            
+                            <button @click="showAbout = true" class="group px-12 py-6 bg-slate-800 border-2 border-slate-700 rounded-2xl font-black text-xl hover:scale-110 hover:border-cyan-500 transition-all shadow-2xl active:scale-95">
+                                <span class="relative z-10 text-slate-300 group-hover:text-white">浜嗚В骞冲彴</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 閰嶇疆绔炴妧鍦?-->
+                    <div v-else-if="currentView === 'arena'" key="arena" class="w-full h-full relative flex flex-col transition-all" :class="selectedAgentId ? 'pr-[32rem]' : ''">
+                        <!-- 辩题配置 -->
+                        <div class="w-full p-8 flex justify-center">
+                            <div class="w-full max-w-5xl bg-slate-800/30 border border-slate-700/50 p-6 rounded-3xl backdrop-blur-sm group hover:border-cyan-500/50 transition-all">
+                                <div class="flex justify-between items-end mb-2">
+                                    <span class="text-[10px] font-black text-cyan-500 uppercase tracking-[0.3em]">辩论主题 / Debate Topic</span>
+                                    <span class="text-[10px] text-slate-500 font-bold">ID: DB-{{ debateId }}</span>
+                                </div>
+                                <input 
+                                    type="text" 
+                                    v-model="debateTopic" 
+                                    placeholder="请输入辩论主题..."
+                                    class="w-full bg-transparent border-none text-2xl font-black text-white focus:outline-none placeholder:text-slate-700 italic"
+                                >
+                            </div>
+                        </div>
+
+                        <!-- 瑙掕壊鐭╅樀 -->
+                        <div class="flex-1 overflow-y-auto scrollbar-hide px-12 pb-12">
+                            <div class="max-w-7xl mx-auto space-y-12">
+                                <!-- 主持人?-->
+                                <div class="flex justify-center">
+                                    <div @click="selectAgent('host')" 
+                                         :class="['p-6 rounded-2xl border-2 cursor-pointer transition-all w-64', 
+                                                  activeId === 'host' ? 'bg-yellow-500/20 border-yellow-400 scale-105 shadow-glow' : 'bg-slate-800/40 border-slate-700 hover:border-yellow-600',
+                                                  agents.host.initialized ? 'border-yellow-500/50 ready-glow' : 'opacity-40 grayscale hover:grayscale-0']">
+                                        <div class="flex flex-col items-center gap-3">
+                                            <div class="w-16 h-16 rounded-full border-2 border-yellow-500 flex items-center justify-center font-black text-yellow-500 italic text-2xl shadow-[0_0_20px_rgba(234,179,8,0.3)]">H</div>
+                                            <div class="text-center">
+                                                <p class="text-xs font-bold text-yellow-500 uppercase">主持人</p>
+                                                <p class="text-sm font-black text-white">{{ agents.host.name }}</p>
+                                                <p class="text-[10px] text-slate-400 mt-1">{{ agents.host.aiModel || '未选择模型' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 杈╂墜闃佃惀 -->
+                                <div class="grid grid-cols-2 gap-16">
+                                    <!-- 正方 -->
+                                    <div class="space-y-4">
+                                        <h3 class="text-center text-lg font-black text-cyan-500 uppercase tracking-widest mb-6">正方 PRO</h3>
+                                        <div v-for="(agent, id) in agents.pro" :key="id" @click="selectAgent(id)" 
+                                             :class="['group p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-4 relative', 
+                                                      activeId === id ? 'bg-cyan-500/20 border-cyan-400 scale-105' : 'bg-slate-800/40 border-slate-700 hover:border-cyan-600',
+                                                      agent.initialized ? 'border-cyan-500/50 ready-glow' : 'opacity-40 grayscale hover:grayscale-0']">
+                                            <div v-if="agent.initialized" class="absolute top-0 right-0 p-1 bg-cyan-500 rounded-bl-lg">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg>
+                                            </div>
+                                            <div class="flex-shrink-0 w-12 h-12 bg-slate-900 border border-cyan-500/50 flex flex-col items-center justify-center rounded-lg rotate-3">
+                                                <span class="text-[10px] font-black text-cyan-400">{{ agent.position }}</span>
+                                            </div>
+                                            <div class="flex-1 overflow-hidden">
+                                                <p class="text-xs font-bold text-cyan-500 uppercase">{{ agent.name }}</p>
+                                                <p class="text-[10px] text-slate-400 truncate">{{ agent.job || '未配置' }}</p>
+                                                <p class="text-[9px] text-slate-500 truncate mt-1">{{ agent.aiModel || '未选择模型' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 反方 -->
+                                    <div class="space-y-4">
+                                        <h3 class="text-center text-lg font-black text-pink-500 uppercase tracking-widest mb-6">反方 CON</h3>
+                                        <div v-for="(agent, id) in agents.con" :key="id" @click="selectAgent(id)" 
+                                             :class="['group p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-row-reverse items-center gap-4 text-right relative', 
+                                                      activeId === id ? 'bg-pink-500/20 border-pink-400 scale-105' : 'bg-slate-800/40 border-slate-700 hover:border-pink-600',
+                                                      agent.initialized ? 'border-pink-500/50 ready-glow' : 'opacity-40 grayscale hover:grayscale-0']">
+                                            <div v-if="agent.initialized" class="absolute top-0 left-0 p-1 bg-pink-500 rounded-br-lg">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg>
+                                            </div>
+                                            <div class="flex-shrink-0 w-12 h-12 bg-slate-900 border border-pink-500/50 flex flex-col items-center justify-center rounded-lg -rotate-3">
+                                                <span class="text-[10px] font-black text-pink-400">{{ agent.position }}</span>
+                                            </div>
+                                            <div class="flex-1 overflow-hidden">
+                                                <p class="text-xs font-bold text-pink-500 uppercase">{{ agent.name }}</p>
+                                                <p class="text-[10px] text-slate-400 truncate">{{ agent.job || '未配置' }}</p>
+                                                <p class="text-[9px] text-slate-500 truncate mt-1">{{ agent.aiModel || '未选择模型' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 瑁佸垽甯?-->
+                                <div class="space-y-4">
+                                    <h3 class="text-center text-lg font-black text-purple-500 uppercase tracking-widest mb-6">评审团 JUDGES</h3>
+                                    <div class="grid grid-cols-5 gap-4">
+                                        <div v-for="(judge, id) in agents.judges" :key="id" @click="selectAgent(id)"
+                                             :class="['p-4 rounded-2xl border-2 cursor-pointer transition-all', 
+                                                      activeId === id ? 'bg-purple-500/20 border-purple-400 scale-105' : 'bg-slate-800/40 border-slate-700 hover:border-purple-600',
+                                                      judge.initialized ? 'border-purple-500/50 ready-glow' : 'opacity-40 grayscale hover:grayscale-0']">
+                                            <div class="flex flex-col items-center gap-2">
+                                                <div class="w-12 h-12 bg-slate-900 border border-purple-500/50 flex items-center justify-center rounded-lg">
+                                                    <span class="text-[10px] font-black text-purple-400">J{{ judge.position }}</span>
+                                                </div>
+                                                <p class="text-xs font-bold text-purple-500 text-center">{{ judge.name }}</p>
+                                                <p class="text-[9px] text-slate-500 truncate w-full text-center">{{ judge.aiModel || '未选择' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 辩论进行页面 -->
+                    <div v-else-if="currentView === 'debate'" key="debate" class="w-full h-full flex">
+                        <!-- 宸︿晶锛氬彂瑷€璁板綍 -->
+                        <div class="flex-1 flex flex-col bg-slate-900/50">
+                            <!-- 当前阶段显示 -->
+                            <div class="p-6 border-b border-slate-800 bg-slate-900/80">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h3 class="text-2xl font-black text-white">{{ debateTopic }}</h3>
+                                        <p class="text-sm text-slate-400 mt-1">当前阶段: <span class="text-cyan-400 font-bold">{{ currentPhase }}</span></p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-xs text-slate-500">杩涘害</p>
+                                        <p class="text-xl font-black text-cyan-400">{{ currentStepIndex + 1 }}/{{ debateSteps.length }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 鍙戣█璁板綍婊氬姩鍖?-->
+                            <div class="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div class="p-4 rounded-xl border border-cyan-700/50 bg-cyan-900/10">
+                                        <p class="text-xs font-black text-cyan-400 mb-3">正方发言区</p>
+                                        <div class="space-y-3 max-h-[42vh] overflow-y-auto">
+                                            <div v-for="(speech, index) in proSpeechHistory" :key="'pro-'+index" class="p-3 rounded-lg border border-cyan-700/40 bg-cyan-900/20">
+                                                <div class="flex justify-between items-center mb-1">
+                                                    <span class="font-black text-sm text-white">{{ speech.speaker }}</span>
+                                                    <span class="text-xs text-slate-400">{{ speech.timestamp }}</span>
+                                                </div>
+                                                <p class="text-xs text-cyan-300 mb-1">{{ speech.role }}</p>
+                                                <p class="text-sm text-slate-200 leading-relaxed">{{ speech.content }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="p-4 rounded-xl border border-pink-700/50 bg-pink-900/10">
+                                        <p class="text-xs font-black text-pink-400 mb-3">反方发言区</p>
+                                        <div class="space-y-3 max-h-[42vh] overflow-y-auto">
+                                            <div v-for="(speech, index) in conSpeechHistory" :key="'con-'+index" class="p-3 rounded-lg border border-pink-700/40 bg-pink-900/20">
+                                                <div class="flex justify-between items-center mb-1">
+                                                    <span class="font-black text-sm text-white">{{ speech.speaker }}</span>
+                                                    <span class="text-xs text-slate-400">{{ speech.timestamp }}</span>
+                                                </div>
+                                                <p class="text-xs text-pink-300 mb-1">{{ speech.role }}</p>
+                                                <p class="text-sm text-slate-200 leading-relaxed">{{ speech.content }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 rounded-xl border border-slate-700/60 bg-slate-800/30">
+                                    <p class="text-xs font-black text-yellow-400 mb-3">主席/评委区</p>
+                                    <div class="space-y-3">
+                                        <div v-for="(speech, index) in neutralSpeechHistory" :key="'neutral-'+index" class="p-3 rounded-lg border border-slate-700/50 bg-slate-900/40">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <span class="font-black text-sm text-white">{{ speech.speaker }}</span>
+                                                <span class="text-xs text-slate-400">{{ speech.timestamp }}</span>
+                                            </div>
+                                            <p class="text-xs text-slate-400 mb-1">{{ speech.role }}</p>
+                                            <p class="text-sm text-slate-200 leading-relaxed">{{ speech.content }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 褰撳墠鍙戣█鑰呮彁绀?-->
+                                <div v-if="currentSpeaker && debateStatus === 'running'" class="p-4 rounded-xl border-2 border-cyan-500 bg-cyan-500/10 flex items-center gap-3">
+                                    <div class="w-3 h-3 bg-cyan-500 rounded-full animate-pulse"></div>
+                                    <span class="text-sm font-bold text-cyan-400">{{ currentSpeaker }} 正在发言，结束后才会进入下一位...</span>
+                                </div>
+                            </div>
+
+                            <!-- 搴曢儴鎺у埗鏍?-->
+                            <div class="p-6 border-t border-slate-800 bg-slate-900/80 flex justify-between items-center">
+                                <button 
+                                    v-if="debateStatus === 'paused'"
+                                    @click="resumeDebate"
+                                    class="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 rounded-xl font-bold text-sm transition-all">
+                                    继续辩论
+                                </button>
+                                <button 
+                                    v-else-if="debateStatus === 'running'"
+                                    @click="pauseDebate"
+                                    class="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-sm transition-all">
+                                    暂停
+                                </button>
+                                <button 
+                                    @click="stopDebate"
+                                    class="px-6 py-3 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-sm transition-all">
+                                    终止辩论
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 鍙充晶锛氳瘎鍒嗛潰鏉?-->
+                        <div class="w-96 bg-slate-900 border-l border-slate-800 flex flex-col">
+                            <div class="p-6 border-b border-slate-800">
+                                <h3 class="text-lg font-black text-white uppercase">评审团评分</h3>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
+                                <div v-for="(judge, id) in agents.judges" :key="id" class="bg-slate-800/30 rounded-xl border border-slate-700 p-4 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-bold text-sm text-purple-400">{{ judge.name }}</span>
+                                        <span class="text-xs text-slate-500">{{ judge.aiModel }}</span>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <div class="flex-1 text-center">
+                                            <p class="text-xs text-slate-500 mb-1">正方</p>
+                                            <p class="text-2xl font-black text-cyan-400">{{ judgeScores[id]?.pro || 0 }}</p>
+                                        </div>
+                                        <div class="flex-1 text-center">
+                                            <p class="text-xs text-slate-500 mb-1">反方</p>
+                                            <p class="text-2xl font-black text-pink-400">{{ judgeScores[id]?.con || 0 }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 总分缁熻 -->
+                                <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border-2 border-slate-700 p-6">
+                                    <h4 class="text-sm font-black text-slate-400 uppercase mb-4 text-center">总分</h4>
+                                    <div class="flex gap-4">
+                                        <div class="flex-1 text-center">
+                                            <p class="text-xs text-cyan-500 mb-2">正方</p>
+                                            <p class="text-4xl font-black text-cyan-400">{{ totalScores.pro }}</p>
+                                        </div>
+                                        <div class="flex-1 text-center">
+                                            <p class="text-xs text-pink-500 mb-2">反方</p>
+                                            <p class="text-4xl font-black text-pink-400">{{ totalScores.con }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+
+                <!-- 閰嶇疆渚ц竟鏍?-->
+                <transition name="slide-fade">
+                    <div v-if="selectedAgentId && currentView === 'arena'" class="absolute right-0 top-0 h-full w-[30rem] bg-slate-900 border-l border-slate-800 shadow-2xl z-[100] flex flex-col">
+                        <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-xl">
+                            <div>
+                                <h2 class="text-lg font-black italic uppercase text-white flex items-center gap-2">
+                                    <span class="w-1 h-5 bg-cyan-500"></span>
+                                    {{ isJudge ? '评审配置' : '人格配置' }}
+                                </h2>
+                                <p class="text-[10px] text-slate-500 font-bold tracking-widest uppercase mt-1">
+                                    状态 <span :class="getSelectedAgent().initialized ? 'text-cyan-400' : 'text-yellow-500'">
+                                        {{ getSelectedAgent().initialized ? '已配置' : '待配置' }}
+                                    </span>
+                                </p>
+                            </div>
+                            <button @click="selectedAgentId = null" class="w-10 h-10 rounded-full hover:bg-slate-800 text-slate-400 transition-colors">鉁</button>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide pb-32">
+                            <!-- AI妯″瀷閫夋嫨 -->
+                            <div class="bg-slate-800/30 rounded-2xl border border-slate-800 p-6 space-y-4">
+                                <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">AI 模型</label>
+                                <select v-model="getSelectedAgent().aiModel" @change="invalidateAgent" 
+                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:border-cyan-500 outline-none text-slate-200">
+                                    <option value="">请选择模型</option>
+                                    <option v-for="model in aiModels" :key="model" :value="model">{{ model }}</option>
+                                </select>
+                            </div>
+
+                            <!-- 鍩烘湰淇℃伅 -->
+                            <div class="bg-slate-800/30 rounded-2xl border border-slate-800 p-6 space-y-6">
+                                <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block">鍩烘湰淇℃伅</label>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="space-y-2">
+                                        <span class="text-[9px] font-bold text-slate-400">濮撳悕</span>
+                                        <input type="text" v-model="getSelectedAgent().name" @input="invalidateAgent" 
+                                               class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm focus:border-cyan-500 outline-none text-slate-200">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <span class="text-[9px] font-bold text-slate-400">性别</span>
+                                        <select v-model="getSelectedAgent().gender" @change="invalidateAgent" 
+                                                class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm focus:border-cyan-500 outline-none text-slate-200">
+                                            <option value="Male">鐢锋€</option>
+                                            <option value="Female">濂虫€</option>
+                                            <option value="Non-binary">鍏朵粬</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <span class="text-[9px] font-bold text-slate-400">骞撮緞 ({{ getSelectedAgent().age }})</span>
+                                        <input type="range" min="18" max="80" v-model="getSelectedAgent().age" @input="invalidateAgent" class="w-full">
+                                    </div>
+                                    <div class="space-y-2">
+                                        <span class="text-[9px] font-bold text-slate-400">鑱屼笟</span>
+                                        <select v-model="getSelectedAgent().job" @change="invalidateAgent" 
+                                                class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm focus:border-cyan-500 outline-none text-slate-200">
+                                            <option v-for="job in jobs" :key="job" :value="job">{{ job }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 鏀跺叆鎯呭喌 (浠呰京鎵? -->
+                            <div v-if="!isJudge && selectedAgentId !== 'host'" class="bg-slate-800/30 rounded-2xl border border-slate-800 p-6 space-y-4">
+                                <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">鏀跺叆姘村钩</label>
+                                <select v-model="getSelectedAgent().income" @change="invalidateAgent" 
+                                        class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:border-cyan-500 outline-none text-slate-200">
+                                    <option value="low">低收入（5万以下/年）</option>
+                                    <option value="middle">中等收入（5-20万/年）</option>
+                                    <option value="upper_middle">中高收入（20-50万/年）</option>
+                                    <option value="high">高收入（50万以上/年）</option>
+                                </select>
+                            </div>
+
+                            <!-- MBTI (浠呰京鎵嬪拰涓绘寔) -->
+                            <div v-if="!isJudge" class="space-y-4">
+                                <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">MBTI 浜烘牸</label>
+                                <div class="grid grid-cols-4 gap-2">
+                                    <button v-for="type in mbtiTypes" :key="type" @click="updateMBTI(type)"
+                                            :class="['py-2.5 text-[10px] font-black rounded-lg border transition-all', 
+                                                     getSelectedAgent().mbti === type ? 'bg-cyan-600 border-cyan-400 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-500']">
+                                        {{ type }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 性格参数 (浠呰京鎵? -->
+                            <div v-if="!isJudge && selectedAgentId !== 'host'" class="space-y-6">
+                                <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">性格参数</label>
+                                <div v-for="(val, param) in getSelectedAgent().params" :key="param" class="space-y-2">
+                                    <div class="flex justify-between text-[10px] font-black uppercase">
+                                        <span class="text-slate-500">{{ paramLabels[param] }}</span>
+                                        <span class="text-cyan-400">{{ val }}%</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" v-model="getSelectedAgent().params[param]" @input="invalidateAgent" class="w-full">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 底部确认按钮 -->
+                        <div class="absolute bottom-0 left-0 w-full p-6 bg-slate-900 border-t border-slate-800 z-10">
+                            <div v-if="initLoading" class="flex items-center justify-center gap-3 py-4 text-cyan-500 text-xs font-bold animate-pulse">
+                                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                配置中...
+                            </div>
+                            <button v-else @click="initializeAgent" 
+                                    :disabled="!getSelectedAgent().aiModel"
+                                    :class="['w-full py-4 font-black rounded-xl transition-all shadow-xl active:scale-95 text-xs', 
+                                             getSelectedAgent().aiModel ? (getSelectedAgent().initialized ? 'bg-slate-800 border border-cyan-500 text-cyan-400' : 'bg-cyan-600 text-white') : 'bg-slate-800 text-slate-600 cursor-not-allowed']">
+                                {{ getSelectedAgent().initialized ? '重新配置' : (getSelectedAgent().aiModel ? '确认配置' : '请先选择AI模型') }}
+                            </button>
+                        </div>
+                    </div>
+                </transition>
+            </main>
+
+            <!-- 鍏充簬骞冲彴寮圭獥 -->
+            <transition name="fade">
+                <div v-if="showAbout" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl">
+                    <div class="bg-slate-900 border border-slate-700 p-10 rounded-3xl max-w-2xl w-full shadow-2xl space-y-6">
+                        <h2 class="text-3xl font-black text-white">鍏充簬 AGORA AI</h2>
+                        <div class="space-y-4 text-slate-300 text-sm leading-relaxed">
+                            <p>AGORA AI 是一个基于多模型的智能辩论平台，支持配置14个AI角色进行标准辩论。</p>
+                            <div class="bg-slate-800/50 rounded-xl p-4">
+                                <h3 class="font-bold text-cyan-400 mb-2">支持的AI模型：</h3>
+                                <div class="grid grid-cols-3 gap-2 text-xs">
+                                    <span>鈥?DeepSeek</span>
+                                    <span>鈥?Qwen (閫氫箟鍗冮棶)</span>
+                                    <span>鈥?Kimi</span>
+                                    <span>鈥?GPT (OpenAI)</span>
+                                    <span>鈥?璞嗗寘 (Doubao)</span>
+                                    <span>鈥?Gemini</span>
+                                    <span>鈥?GLM (鏅鸿氨)</span>
+                                </div>
+                            </div>
+                            <div class="bg-slate-800/50 rounded-xl p-4">
+                                <h3 class="font-bold text-cyan-400 mb-2">辩论流程：</h3>
+                                <p class="text-xs">开篇立论 -> 驳论环节 -> 自由辩论 -> 总结陈词 -> 评委评分</p>
+                            </div>
+                        </div>
+                        <button @click="showAbout = false" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl font-black transition-all">
+                            鍏抽棴
+                        </button>
+                    </div>
+                </div>
+            </transition>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed } = Vue;
+
+        createApp({
+            setup() {
+                // ===== 璁よ瘉鐩稿叧 =====
+                const currentUser = ref(null);
+                const showAuthModal = ref(true);
+                const authMode = ref('login');
+                const authForm = reactive({
+                    username: '',
+                    password: '',
+                    email: ''
+                });
+                const authError = ref('');
+                const authLoading = ref(false);
+                const showUserMenu = ref(false);
+
+                // ===== 瑙嗗浘鐘舵€?=====
+                const currentView = ref('home');
+                const selectedAgentId = ref(null);
+                const activeId = ref(null);
+                const initLoading = ref(false);
+                const showAbout = ref(false);
+
+                // ===== 辩论配置 =====
+                const debateId = ref(Math.floor(Date.now() / 1000));
+                const debateTopic = ref('浜哄伐鏅鸿兘鐨勫彂灞曟槸鍚︿細濞佽儊浜虹被鐨勬湭鏉ワ紵');
+                const debateStatus = ref('idle'); // idle, running, paused, finished
+                const currentPhase = ref('');
+                const currentStepIndex = ref(0);
+                const currentSpeaker = ref('');
+                const speechHistory = ref([]);
+
+                // ===== AI妯″瀷鍒楄〃 =====
+                const aiModels = [
+                    'DeepSeek',
+                    'Qwen (閫氫箟鍗冮棶)',
+                    'Kimi',
+                    'GPT-4',
+                    'GPT-3.5',
+                    'Doubao (璞嗗寘)',
+                    'Gemini Pro',
+                    'Gemini Ultra',
+                    'GLM-4',
+                    'GLM-3'
+                ];
+
+                // ===== 閰嶇疆鏁版嵁 =====
+                const jobs = [
+                    '大学教授', '资深律师', '技术分析师', '艺术家', '政府官员',
+                    '在校学生', '自由职业者', '退休医生', '金融投资人', '社会评论家',
+                    '企业家', '工程师', '记者', '教师', '研究员'
+                ];
+                const mbtiTypes = [
+                    'INTJ', 'INTP', 'ENTJ', 'ENTP', 
+                    'INFJ', 'INFP', 'ENFJ', 'ENFP',
+                    'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ', 
+                    'ISTP', 'ISFP', 'ESTP', 'ESFP'
+                ];
+                const paramLabels = {
+                    aggression: '攻击性',
+                    logic: '逻辑性',
+                    rhetoric: '修辞能力',
+                    emotional: '鎯呮劅璇夋眰'
+                };
+
+                // ===== 瑙掕壊鍒涘缓鍑芥暟 =====
+                const createDebater = (position, name, side) => ({
+                    position,
+                    name,
+                    side,
+                    aiModel: '',
+                    gender: 'Male',
+                    age: 30,
+                    job: '大学教授',
+                    income: '中等收入',
+                    mbti: 'INTJ',
+                    params: {
+                        aggression: 50,
+                        logic: 50,
+                        rhetoric: 50,
+                        emotional: 50
+                    },
+                    initialized: false
+                });
+
+                const createJudge = (position, name) => ({
+                    position,
+                    name,
+                    aiModel: '',
+                    gender: 'Male',
+                    age: 45,
+                    job: '资深评委',
+                    initialized: false
+                });
+
+                // ===== 瑙掕壊鏁版嵁 =====
+                const agents = reactive({
+                    host: {
+                        name: 'HOST',
+                        aiModel: '',
+                        gender: 'Male',
+                        age: 35,
+                        job: '专业主持人',
+                        mbti: 'ENTJ',
+                        initialized: false
+                    },
+                    pro: {
+                        'pro-1': createDebater('一辩', 'PRO-1', 'pro'),
+                        'pro-2': createDebater('浜岃京', 'PRO-2', 'pro'),
+                        'pro-3': createDebater('涓夎京', 'PRO-3', 'pro'),
+                        'pro-4': createDebater('鍥涜京', 'PRO-4', 'pro')
+                    },
+                    con: {
+                        'con-1': createDebater('一辩', 'CON-1', 'con'),
+                        'con-2': createDebater('浜岃京', 'CON-2', 'con'),
+                        'con-3': createDebater('涓夎京', 'CON-3', 'con'),
+                        'con-4': createDebater('鍥涜京', 'CON-4', 'con')
+                    },
+                    judges: {
+                        'judge-1': createJudge('1', 'JUDGE-1'),
+                        'judge-2': createJudge('2', 'JUDGE-2'),
+                        'judge-3': createJudge('3', 'JUDGE-3'),
+                        'judge-4': createJudge('4', 'JUDGE-4'),
+                        'judge-5': createJudge('5', 'JUDGE-5')
+                    }
+                });
+
+                // ===== 闅忔満鍒濆閰嶇疆锛?4个角色，默认未确认） =====
+                const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+                const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+                const randomGenders = ['Male', 'Female'];
+                const randomIncomes = ['低收入', '中等收入', '中高收入', '高收入'];
+
+                const applyRandomAgentProfile = (agent, isJudge = false) => {
+                    if (!agent) return;
+                    agent.aiModel = pick(aiModels);
+                    agent.gender = pick(randomGenders);
+                    agent.age = randomInt(isJudge ? 30 : 22, isJudge ? 65 : 55);
+                    agent.job = pick(jobs);
+                    if (!isJudge) {
+                        agent.income = pick(randomIncomes);
+                        agent.mbti = pick(mbtiTypes);
+                        agent.params = {
+                            aggression: randomInt(25, 85),
+                            logic: randomInt(25, 85),
+                            rhetoric: randomInt(25, 85),
+                            emotional: randomInt(25, 85)
+                        };
+                    }
+                    // 随机仅预填，等待用户手动确认
+                    agent.initialized = false;
+                };
+
+                applyRandomAgentProfile(agents.host, false);
+                Object.values(agents.pro).forEach((a) => applyRandomAgentProfile(a, false));
+                Object.values(agents.con).forEach((a) => applyRandomAgentProfile(a, false));
+                Object.values(agents.judges).forEach((j) => applyRandomAgentProfile(j, true));
+
+                // ===== 正式辩论流程定义 =====
+                const debateSteps = [
+                    { phase: '主席开场', speaker: 'host', duration: 120, side: 'neutral', kind: 'speech' },
+                    { phase: '正方一辩立论', speaker: 'pro-1', duration: 210, side: 'pro', kind: 'speech' },
+                    { phase: '反方一辩立论', speaker: 'con-1', duration: 210, side: 'con', kind: 'speech' },
+                    { phase: '正方二辩驳论', speaker: 'pro-2', duration: 150, side: 'pro', kind: 'speech' },
+                    { phase: '反方二辩驳论', speaker: 'con-2', duration: 150, side: 'con', kind: 'speech' },
+                    { phase: '正方三辩盘问', speaker: 'pro-3', target: 'con-3', duration: 120, side: 'pro', kind: 'cross' },
+                    { phase: '反方三辩盘问', speaker: 'con-3', target: 'pro-3', duration: 120, side: 'con', kind: 'cross' },
+                    { phase: '自由辩论', speaker: 'free', duration: 480, side: 'both', kind: 'free' },
+                    { phase: '反方四辩总结', speaker: 'con-4', duration: 210, side: 'con', kind: 'speech' },
+                    { phase: '正方四辩总结', speaker: 'pro-4', duration: 210, side: 'pro', kind: 'speech' },
+                    { phase: '评委点评', speaker: 'judges', duration: 420, side: 'neutral', kind: 'judge' },
+                    { phase: '宣布结果', speaker: 'host', duration: 120, side: 'neutral', kind: 'announce' }
+                ];
+
+                // ===== 评分系统 =====
+                const judgeScores = reactive({
+                    'judge-1': { pro: 0, con: 0 },
+                    'judge-2': { pro: 0, con: 0 },
+                    'judge-3': { pro: 0, con: 0 },
+                    'judge-4': { pro: 0, con: 0 },
+                    'judge-5': { pro: 0, con: 0 }
+                });
+
+                const totalScores = computed(() => ({
+                    pro: Object.values(judgeScores).reduce((sum, s) => sum + (s.pro || 0), 0),
+                    con: Object.values(judgeScores).reduce((sum, s) => sum + (s.con || 0), 0)
+                }));
+
+                const proSpeechHistory = computed(() => speechHistory.value.filter(s => s.side === 'pro'));
+                const conSpeechHistory = computed(() => speechHistory.value.filter(s => s.side === 'con'));
+                const neutralSpeechHistory = computed(() => speechHistory.value.filter(s => s.side !== 'pro' && s.side !== 'con'));
+
+                // ===== 执行状态（串行锁） =====
+                const runToken = ref(0);
+
+                const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+                const waitUntilRunnable = async (token) => {
+                    while (runToken.value === token && debateStatus.value === 'paused') {
+                        await sleep(250);
+                    }
+                    return runToken.value === token && debateStatus.value === 'running';
+                };
+
+                const simulateSpeech = async (id, agent, duration, side, phaseLabel = '') => {
+                    const waitMs = Math.max(900, Math.min(2600, Math.floor(duration * 8)));
+                    await sleep(waitMs);
+                    const phaseText = phaseLabel ? `【${phaseLabel}】` : '';
+                    const content = `${phaseText}${agent.name}发言：围绕“${debateTopic.value}”进行论证，强调本方立场、回应对方观点，并给出可验证论据。`;
+                    addSpeech(id, agent.name, agent.position || '辩手', content, side);
+                };
+
+                const simulateCrossExamination = async (step) => {
+                    const asker = getAgentById(step.speaker);
+                    const responder = getAgentById(step.target);
+                    if (!asker || !responder) return;
+
+                    currentSpeaker.value = `${asker.name} 提问`;
+                    await sleep(1200);
+                    addSpeech(step.speaker, asker.name, '盘问提问', `请对方解释其核心论点中的关键假设，并说明证据来源。`, step.side);
+
+                    currentSpeaker.value = `${responder.name} 回答`;
+                    await sleep(1200);
+                    addSpeech(step.target, responder.name, '盘问回答', `我们接受质询，补充论据并澄清对方误解，同时指出其论证中的漏洞。`, responder.side || 'neutral');
+                    currentSpeaker.value = '';
+                };
+
+                const simulateFreeDebate = async (token) => {
+                    const rounds = 8;
+                    for (let i = 0; i < rounds; i++) {
+                        if (!(await waitUntilRunnable(token))) return;
+
+                        const proAgent = agents.pro[`pro-${(i % 4) + 1}`];
+                        currentSpeaker.value = proAgent.name;
+                        await simulateSpeech(`pro-${(i % 4) + 1}`, proAgent, 60, 'pro', '自由辩论');
+
+                        if (!(await waitUntilRunnable(token))) return;
+
+                        const conAgent = agents.con[`con-${(i % 4) + 1}`];
+                        currentSpeaker.value = conAgent.name;
+                        await simulateSpeech(`con-${(i % 4) + 1}`, conAgent, 60, 'con', '自由辩论');
+                    }
+                    currentSpeaker.value = '';
+                };
+
+                const simulateJudging = async () => {
+                    for (const judgeId of Object.keys(judgeScores)) {
+                        const judge = agents.judges[judgeId];
+                        judgeScores[judgeId].pro = Math.floor(Math.random() * 21) + 75;
+                        judgeScores[judgeId].con = Math.floor(Math.random() * 21) + 75;
+                        await sleep(700);
+                        addSpeech(judgeId, judge.name, '评委点评', `正方 ${judgeScores[judgeId].pro} 分，反方 ${judgeScores[judgeId].con} 分。建议双方在论证链与反驳针对性上继续优化。`, 'neutral');
+                    }
+                };
+
+                const finishDebate = () => {
+                    debateStatus.value = 'finished';
+                    currentSpeaker.value = '';
+                    currentPhase.value = '宣布结果';
+                    const winner = totalScores.value.pro > totalScores.value.con ? '正方' : (totalScores.value.pro < totalScores.value.con ? '反方' : '平局');
+                    addSpeech('host', agents.host.name, '主席宣布', `本场辩论结束。最终结果：${winner}。感谢评委与双方辩手。`, 'neutral');
+                };
+
+                const executeDebateStep = async (token) => {
+                    while (runToken.value === token && debateStatus.value !== 'finished') {
+                        if (!(await waitUntilRunnable(token))) return;
+
+                        if (currentStepIndex.value >= debateSteps.length) {
+                            finishDebate();
+                            return;
+                        }
+
+                        const step = debateSteps[currentStepIndex.value];
+                        currentPhase.value = step.phase;
+
+                        if (step.kind === 'speech') {
+                            const agent = getAgentById(step.speaker);
+                            if (agent) {
+                                currentSpeaker.value = agent.name;
+                                await simulateSpeech(step.speaker, agent, step.duration, step.side, step.phase);
+                                currentSpeaker.value = '';
+                            }
+                        } else if (step.kind === 'cross') {
+                            await simulateCrossExamination(step);
+                        } else if (step.kind === 'free') {
+                            await simulateFreeDebate(token);
+                        } else if (step.kind === 'judge') {
+                            await simulateJudging();
+                        } else if (step.kind === 'announce') {
+                            await sleep(800);
+                            finishDebate();
+                            return;
+                        }
+
+                        currentStepIndex.value++;
+                        await sleep(500);
+                    }
+                };
+
+                // ===== 认证方法 =====
+                const handleAuth = async () => {
+                    authError.value = '';
+                    authLoading.value = true;
+                    await sleep(300);
+
+                    if (authMode.value === 'login') {
+                        if (authForm.username && authForm.password) {
+                            currentUser.value = {
+                                id: Date.now(),
+                                username: authForm.username,
+                                email: authForm.email || `${authForm.username}@example.com`
+                            };
+                            showAuthModal.value = false;
+                            localStorage.setItem('agoraUser', JSON.stringify(currentUser.value));
+                        } else {
+                            authError.value = '请填写用户名和密码';
+                        }
+                    } else {
+                        if (authForm.username && authForm.password && authForm.email) {
+                            currentUser.value = {
+                                id: Date.now(),
+                                username: authForm.username,
+                                email: authForm.email
+                            };
+                            showAuthModal.value = false;
+                            authMode.value = 'login';
+                            localStorage.setItem('agoraUser', JSON.stringify(currentUser.value));
+                        } else {
+                            authError.value = '请填写完整注册信息';
+                        }
+                    }
+                    authLoading.value = false;
+                };
+
+                const logout = () => {
+                    currentUser.value = null;
+                    localStorage.removeItem('agoraUser');
+                    showUserMenu.value = false;
+                    currentView.value = 'home';
+                    showAuthModal.value = true;
+                };
+
+                const savedUser = localStorage.getItem('agoraUser');
+                if (savedUser) {
+                    currentUser.value = JSON.parse(savedUser);
+                    showAuthModal.value = false;
+                }
+
+                // ===== 角色配置方法 =====
+                const selectAgent = (id) => {
+                    selectedAgentId.value = id;
+                    activeId.value = id;
+                };
+
+                const getSelectedAgent = () => {
+                    if (!selectedAgentId.value) return null;
+                    if (selectedAgentId.value === 'host') return agents.host;
+                    if (selectedAgentId.value.startsWith('pro')) return agents.pro[selectedAgentId.value];
+                    if (selectedAgentId.value.startsWith('con')) return agents.con[selectedAgentId.value];
+                    if (selectedAgentId.value.startsWith('judge')) return agents.judges[selectedAgentId.value];
+                    return null;
+                };
+
+                const isJudge = computed(() => selectedAgentId.value?.startsWith('judge'));
+
+                const invalidateAgent = () => {
+                    const agent = getSelectedAgent();
+                    if (agent) agent.initialized = false;
+                };
+
+                const updateMBTI = (type) => {
+                    const agent = getSelectedAgent();
+                    if (agent) {
+                        agent.mbti = type;
+                        agent.initialized = false;
+                    }
+                };
+
+                const initializeAgent = async () => {
+                    const agent = getSelectedAgent();
+                    if (!agent || !agent.aiModel) return;
+                    initLoading.value = true;
+                    await sleep(400);
+                    agent.initialized = true;
+                    initLoading.value = false;
+                };
+
+                const readyCount = computed(() => {
+                    let count = 0;
+                    if (agents.host.initialized) count++;
+                    Object.values(agents.pro).forEach(a => a.initialized && count++);
+                    Object.values(agents.con).forEach(a => a.initialized && count++);
+                    Object.values(agents.judges).forEach(j => j.initialized && count++);
+                    return count;
+                });
+
+                const getAgentById = (id) => {
+                    if (id === 'host') return agents.host;
+                    if (id.startsWith('pro')) return agents.pro[id];
+                    if (id.startsWith('con')) return agents.con[id];
+                    if (id.startsWith('judge')) return agents.judges[id];
+                    return null;
+                };
+
+                const addSpeech = (id, speaker, role, content, side) => {
+                    speechHistory.value.push({
+                        id,
+                        speaker,
+                        role,
+                        content,
+                        side,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                };
+
+                // ===== 辩论控制 =====
+                const startDebate = async () => {
+                    if (readyCount.value < 14 || !debateTopic.value.trim()) return;
+                    runToken.value += 1;
+                    const token = runToken.value;
+                    currentView.value = 'debate';
+                    debateStatus.value = 'running';
+                    currentStepIndex.value = 0;
+                    currentSpeaker.value = '';
+                    currentPhase.value = '准备开始';
+                    speechHistory.value = [];
+                    Object.keys(judgeScores).forEach(j => {
+                        judgeScores[j].pro = 0;
+                        judgeScores[j].con = 0;
+                    });
+                    await executeDebateStep(token);
+                };
+
+                const pauseDebate = () => {
+                    if (debateStatus.value === 'running') debateStatus.value = 'paused';
+                };
+
+                const resumeDebate = () => {
+                    if (debateStatus.value === 'paused') debateStatus.value = 'running';
+                };
+
+                const stopDebate = () => {
+                    runToken.value += 1;
+                    debateStatus.value = 'finished';
+                    currentSpeaker.value = '';
+                    currentView.value = 'arena';
+                };
+
+                const handleHomeClick = () => {
+                    if (readyCount.value > 0) {
+                        if (confirm('返回主页将清除所有配置，确定继续吗？')) {
+                            resetAll();
+                        }
+                    } else {
+                        currentView.value = 'home';
+                    }
+                };
+
+                const resetAll = () => {
+                    Object.values(agents.pro).forEach(a => a.initialized = false);
+                    Object.values(agents.con).forEach(a => a.initialized = false);
+                    Object.values(agents.judges).forEach(j => j.initialized = false);
+                    agents.host.initialized = false;
+                    currentView.value = 'home';
+                    selectedAgentId.value = null;
+                };
+
+                return {
+                    // 璁よ瘉
+                    currentUser, showAuthModal, authMode, authForm, authError, authLoading, showUserMenu,
+                    handleAuth, logout,
+                    // 瑙嗗浘
+                    currentView, selectedAgentId, activeId, initLoading, showAbout,
+                    // 辩论
+                    debateId, debateTopic, debateStatus, currentPhase, currentStepIndex, currentSpeaker,
+                    speechHistory, proSpeechHistory, conSpeechHistory, neutralSpeechHistory, debateSteps, judgeScores, totalScores,
+                    // 閰嶇疆
+                    aiModels, jobs, mbtiTypes, paramLabels, agents, readyCount,
+                    // 鏂规硶
+                    selectAgent, getSelectedAgent, isJudge, invalidateAgent, updateMBTI, initializeAgent,
+                    startDebate, pauseDebate, resumeDebate, stopDebate, handleHomeClick
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
+
+

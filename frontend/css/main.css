@@ -1,0 +1,332 @@
+/* Main CSS file - loads after critical inline CSS */
+
+/* Import fonts with display swap for faster rendering */
+@font-face {
+    font-family: 'Noto Sans SC';
+    font-display: swap;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(30, 41, 59, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.5);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.7);
+}
+
+/* Selection styling */
+::selection {
+    background: rgba(34, 211, 238, 0.3);
+    color: white;
+}
+
+::-moz-selection {
+    background: rgba(34, 211, 238, 0.3);
+    color: white;
+}
+
+/* Focus styles for accessibility */
+*:focus-visible {
+    outline: 2px solid #22d3ee;
+    outline-offset: 2px;
+}
+
+/* Button states */
+button {
+    position: relative;
+    overflow: hidden;
+}
+
+button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.5);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%);
+    transform-origin: 50% 50%;
+}
+
+button:focus:not(:active)::after {
+    animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(0, 0);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(20, 20);
+        opacity: 0;
+    }
+}
+
+/* Input autofill styling */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px #020617 inset;
+    -webkit-text-fill-color: #e2e8f0;
+}
+
+/* Smooth transitions for all interactive elements */
+input,
+select,
+button,
+a {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Improved contrast for text */
+.text-high-contrast {
+    color: #f8fafc;
+}
+
+.text-medium-contrast {
+    color: #cbd5e1;
+}
+
+.text-low-contrast {
+    color: #94a3b8;
+}
+
+/* Card hover effects */
+.card-hover {
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Avatar styling */
+.avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: white;
+    text-transform: uppercase;
+}
+
+/* Badge styling */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    white-space: nowrap;
+}
+
+/* Tooltip styling */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]:hover::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.5rem 0.75rem;
+    background: #1e293b;
+    color: #f1f5f9;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 0.375rem;
+    white-space: nowrap;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    z-index: 50;
+    margin-bottom: 0.5rem;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* Skeleton loading animation */
+@keyframes skeleton-loading {
+    0% {
+        background-position: -200px 0;
+    }
+    100% {
+        background-position: calc(200px + 100%) 0;
+    }
+}
+
+.skeleton {
+    background: linear-gradient(90deg,
+        rgba(30, 41, 59, 0.5) 0%,
+        rgba(51, 65, 85, 0.5) 50%,
+        rgba(30, 41, 59, 0.5) 100%
+    );
+    background-size: 200px 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+/* Toast notification styles */
+.toast {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    max-width: 400px;
+    padding: 1rem;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    animation: slide-in-right 0.3s ease-out;
+}
+
+.toast.success {
+    border-left: 4px solid #22c55e;
+}
+
+.toast.error {
+    border-left: 4px solid #ef4444;
+}
+
+.toast.warning {
+    border-left: 4px solid #eab308;
+}
+
+.toast.info {
+    border-left: 4px solid #22d3ee;
+}
+
+@keyframes slide-in-right {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive utilities */
+@media (max-width: 640px) {
+    .responsive-text-sm {
+        font-size: 0.875rem;
+    }
+
+    .responsive-text-base {
+        font-size: 1rem;
+    }
+
+    .responsive-text-lg {
+        font-size: 1.125rem;
+    }
+
+    .responsive-text-xl {
+        font-size: 1.25rem;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+    .responsive-text-sm {
+        font-size: 0.875rem;
+    }
+
+    .responsive-text-base {
+        font-size: 1rem;
+    }
+
+    .responsive-text-lg {
+        font-size: 1.125rem;
+    }
+
+    .responsive-text-xl {
+        font-size: 1.25rem;
+    }
+}
+
+@media (min-width: 769px) {
+    .responsive-text-sm {
+        font-size: 0.875rem;
+    }
+
+    .responsive-text-base {
+        font-size: 1rem;
+    }
+
+    .responsive-text-lg {
+        font-size: 1.125rem;
+    }
+
+    .responsive-text-xl {
+        font-size: 1.25rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    .print-only {
+        display: block !important;
+    }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Dark mode preference */
+@media (prefers-color-scheme: dark) {
+    /* Default dark mode styles are already applied */
+}
+
+/* Light mode (if implemented later) */
+@media (prefers-color-scheme: light) {
+    [data-theme='light'] body {
+        background-color: #f8fafc;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    * {
+        border: 1px solid currentColor;
+    }
+}
